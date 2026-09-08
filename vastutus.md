@@ -19,23 +19,23 @@
 
 ## Kolm asja, mis ei tohi kunagi kliendile jõuda
 
-1. **Andmebaasi parool ja ühendusandmed** – kui kasutaja seda näeb, saab ta täieliku ligipääsu kogu andmebaasile.
-2. **Administraatori õiguste andmise kood/funktsioon** – klient ei otsusta, kas kasutaja on admin, muidu igaüks saaks teha endale admin-õigused.
-3. **Äriloogika salajased algoritmilised reeglid** – ärisaladused ja turvakontrollide täpne sisu peavad olema peidus serveris.
+1. **API salajased võtmed ja välised teenuste tokenid (nt makselüüsid või e-posti teenused)** – kui need lekivad kliendile, saavad teised neid kuritarvitada (näiteks saata sinu nimel miljoneid spämmi-e-kirju või teha kulukaid päringuid).
+2. **Kasutajate paroolide räsid või soolased (hashed passwords)** – kui paroolide andmebaas koos räsidega laetakse kliendi poolele, saab ründaja neid võrguühenduseta (offline) jõuga ehk *Brute Force / Rainbow Table* meetodiga lahti murda.
+3. **Sisemised ärireeglid ja hinnakujunduse/allahindluste algoritmid** – kui kogu loogika, kuidas arvutatakse klubi liikmetasusid või soodustusi, on kliendi koodis lahti kirjutatud, saab iga kasutaja muuta koodi nii, et saab treeningud tasuta.
 
 ## Kolm rünnakut (kui kontroll on tehtud ainult kliendis)
 
-### 1. Andmete manipuleerimine (Client Tampering / Bypassing UI)
-* **Kuidas juhtub:** Kasutaja muudab brauseris (näiteks DevTools / F12 abil) või saadab otse päringu kaudu andmeid (näiteks muudab hinna nulliks või sisestab negatiivse vanuse), kuna arendaja pani piirangu ainult brauseri JavaScripti tasemel.
-* **Miks see on katastroof:** Server usub pimesi kliendilt tulelnud infot ja salvestab rikutud andmed andmebaasi.
-* **Kuidas serveripoolne kontroll aitab:** Server ignoreerib brauseri reegleid, arvutab väärtused ise ja teostab ranged valideerimised enne andmete salvestamist.
+### 1. MassAssignment / Andmeväljade volitamata lisamine (Over-posting)
+* **Kuidas juhtub:** Kasutaja saadab vormi kaudu lisavälja (näiteks `is_admin: true` või `balance: 1000`), mida vormis polnudki näha, aga kuna server võtab vastu kogu objekti, kirjutab see andmed baasi.
+* **Miks see on katastroof:** Kasutaja saab salaja muuta andmeid, millele tal ei tohiks ligipääsu olla.
+* **Kuidas serveripoolne kontroll aitab:** Server filtreerib sissetulevad andmed rangelt (*whitelisting*) ja lubab muuta ainult lubatud välju.
 
-### 2. Topeltbroneerimine (Race Condition)
-* **Kuidas juhtub:** Kaks kasutajat klikivad samal ajal viimasele vabale kohale. Kui kogu loogika toimib ainult kliendis, näevad mõlemad kasutajad edukat broneeringut, kuigi vaba koht oli vaid üks.
-* **Miks see on katastroof:** Tekib konflikt ja andmete ebakooskõla (ühele kohale registreerub mitu inimest).
-* **Kuidas serveripoolne kontroll aitab:** Server ja andmebaas töötlevad päringuid transaktsioonide ning lukustuste abil rangelt ükshaaval, tagades, et teine kasutaja saab kohe teate koha täituvusest.
+### 2. Broken Object Level Authorization (BOLA - Broken Object Level Authorization / IDOR - Insecure Direct Object Reference)
+* **Kuidas juhtub:** Kasutaja muudab URL-is või päringus oma ID (näiteks `/api/user/5`) kellegi teise ID vastu (`/api/user/6`), et näha teise klubiliikme privaatseid broneeringuid või isikuandmeid.
+* **Miks see on katastroof:** Server usub, et kui kasutaja on sisse loginud, siis võib ta vaadata suvalisi ID-sid, ja lekivad teiste isikuandmed (GDPR rikkumine).
+* **Kuidas serveripoolne kontroll aitab:** Server kontrollib alati sessiooni põhjal: kas *praegusel* sisselogitud kasutajal on õigus *just sellele* konkreetsele ressursile ligi pääseda.
 
-### 3. Peidetud funktsioonide ja õiguste ärakasutamine (Privilege Escalation)
-* **Kuidas juhtub:** Arendaja peidab nupu „Kustuta kasutaja“ või „Tee adminiks“ tavalise kasutaja liidesest ära, eeldades, et kui nuppu pole näha, siis keegi seda ei kasuta. Ründaja saadab aga vastava käsu/URL-i serverile otse konsoolist.
-* **Miks see on katastroof:** Server ei kontrolli päringu saatja tegelikke õigusi ja annab esimesele ette tulnud kasutajale täieliku kontrolli süsteemi üle.
-* **Kuidas serveripoolne kontroll aitab:** Server kontrollib iga kriitilise päringu saabumisel alati turvasessiooni ja andmebaasi kirjet (nt kas `is_admin == true`), lükates volitamata päringud koheselt tagasi.
+### 3. Rate Limiting puudumine / Brute-Force rünnak (Päringute uputamine)
+* **Kuidas juhtub:** Ründaja kirjutab skripti, mis saadab kliendi liidese kaudu (või otse) sekundis tuhat sisselogimispäringut või broneeringikatset.
+* **Miks see on katastroof:** Server või andmebaas jookseb koormuse all kokku (*Denial of Service*) või toimub paroolide automaatne äraarvamine.
+* **Kuidas serveripoolne kontroll aitab:** Server seab IP-aadressi või kasutaja põhjal limiidid (*Rate Limiting*) ja blokeerib liiga kiire ja kahtlase päringute voo.
